@@ -50,8 +50,8 @@ class LaneFinder:
 
         # Define and save the top down transforms
         sourcepoints = np.float32([[int(img.shape[1]*7/12), int(img.shape[0]*7/11)],
-                                   [int(img.shape[1]), int(img.shape[0]*9/10)],
-                                   [0, int(img.shape[0]*9/10)],
+                                   [int(img.shape[1]), int(img.shape[0])],
+                                   [0, int(img.shape[0])],
                                    [int(img.shape[1]*5/12), int(img.shape[0]*7/11)]])
         destinationpoints = np.float32([[img.shape[1], 0],
                                         [img.shape[1], img.shape[0]],
@@ -79,7 +79,7 @@ class LaneFinder:
         hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
         s_channel = hls[:, :, 2]
 
-        # TODO: Do some exploring of color channels...
+        # TODO: Do some exploring for better color channels...
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
 
         # Sobel x
@@ -126,6 +126,16 @@ class LaneFinder:
 
         # Transform the input image to a top-down view
         warped = cv2.warpPerspective(image, self.M, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
+
+        return warped
+
+    def inverse_top_down_perspective_transform(self, image, visualization=False):
+
+        # Undistort the image
+        image = cv2.undistort(image, self.mtx, self.dist, None, self.mtx)
+
+        # Transform the input image to a top-down view
+        warped = cv2.warpPerspective(image, self.Minv, (image.shape[1], image.shape[0]), flags=cv2.INTER_LINEAR)
 
         return warped
 
@@ -295,6 +305,36 @@ class LaneFinder:
 
         return left_fit, leftx, lefty, right_fit, rightx, righty
 
+    def format_lines(self, image, left_fit, right_fit):
+
+        # Fit the line coeficients to lines
+        ploty = np.linspace(0, image.shape[0] - 1, image.shape[0])
+        left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+        right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+
+        return ploty, left_fitx, right_fitx
+
+    def draw_lines(self, warped, image, ploty, left_fitx, right_fitx):
+        # Create an image to draw the lines on
+        warp_zero = np.zeros_like(warped).astype(np.uint8)
+        color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+        # Recast the x and y points into usable format for cv2.fillPoly()
+        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        pts = np.hstack((pts_left, pts_right))
+
+        # Draw the lane onto the warped blank image
+        cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+
+        # Warp the blank back to original image space using inverse perspective matrix (Minv)
+        newwarp = self.inverse_top_down_perspective_transform(color_warp)
+
+        # Combine the result with the original image
+        result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
+
+        return result
+
     def image_pipeline(self, image):
 
         # Apply color channel and sorbel
@@ -306,14 +346,18 @@ class LaneFinder:
         # Use the histogram method to draw lane lines
         left_fit, leftx, lefty, right_fit, rightx, righty = self.histogram_fit(img)
 
-        
+        # Format the lines
+        ploty, left_fitx, right_fitx = self.format_lines(img, left_fit, right_fit)
 
-        return img
+        # Draw lane on the original image
+        image = self.draw_lines(img, image, ploty, left_fitx, right_fitx)
+
+        return image
 
 def main():
 
     lf = LaneFinder("camera_cal/calibration*.jpg", 9, 6)
-    image = cv2.imread("test_images/test3.jpg")
+    image = cv2.imread("test_images/test1.jpg")
     image = lf.image_pipeline(image)
     cv2.imwrite("test.jpg", image)
 
