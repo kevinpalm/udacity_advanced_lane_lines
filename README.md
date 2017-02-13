@@ -19,7 +19,7 @@ The goals / steps of this project are the following:
 [image4]: ./output_images/straight_lines.jpg "Straight lines"
 [image5]: ./output_images/histogram_fit.jpg "Histogram Fit Visual"
 [image6]: ./output_images/margin_fit.jpg "Margin Fit Visual"
-[image7]: ./test_images/processed_test2.jpg "Output"
+[image7]: ./test_images/processedtest2.jpg "Output"
 [video1]: ./processed_project_video.mp4 "Video"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
